@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nwagra — agrandir l’espace des applis NumWorks</title>
+  <style>
+    :root { font-family: Segoe UI, system-ui, sans-serif; color: #1a1a1a; background: #f4f1ea; }
+    body { max-width: 42rem; margin: 2rem auto; padding: 0 1.2rem 3rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; }
+    .card { background: #fff; border-radius: 12px; padding: 1.2rem 1.4rem; box-shadow: 0 1px 8px #0001; }
+    a.bookmarklet {
+      display: inline-block; margin: 0.6rem 0 1rem; padding: 0.7rem 1.1rem;
+      background: #e85d04; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 650;
+    }
+    .warn { background: #fff3cd; padding: 0.8rem 1rem; border-radius: 8px; margin: 1rem 0; }
+    ol { padding-left: 1.3rem; }
+    code { background: #eee; padding: 0.1rem 0.35rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Nwagra (Nwagyu)</h1>
+  <p>Par défaut, le site NumWorks n’autorise qu’environ <strong>2,5&nbsp;Mo</strong> d’applis externes. Nwagra fait croire à l’installateur qu’il peut aller jusqu’à environ <strong>6&nbsp;Mo</strong> (en réutilisant la copie de secours du système).</p>
+
+  <div class="warn">
+    Sur les versions récentes d’Epsilon, Nwagra peut être incompatible (message «&nbsp;mode examen&nbsp;»). Dans ce cas, utilisez l’installateur <code>lancer.bat</code> avec <strong>nwlink</strong> plutôt que le site.
+  </div>
+
+  <div class="card">
+    <p><strong>1.</strong> Glissez ce bouton dans la barre des favoris de Chrome&nbsp;:</p>
+    <p>
+      <a class="bookmarklet" href="javascript:(function(){if(document.getElementById('nwagra')){alert('Nwagra est deja actif.');return;}if(!/numworks\.com/i.test(location.href)){if(confirm('Ouvrir l installateur NumWorks ?'))location.href='https://my.numworks.com/apps';return;}var o=USBDevice.prototype.controlTransferIn;USBDevice.prototype.controlTransferIn=function(s,l){if(40!==l)return o.call(this,s,l);var d=this;return new Promise(function(r){o.call(d,s,l).then(function(x){4276994270===x.data.getUint32()&&x.data.setUint32(24,2424307712,!0);r(x);});});};var h=document.querySelector('h1');if(h)h.textContent='Enlarged Extra Apps';var p=document.createElement('p');p.id='nwagra';p.style.textAlign='center';p.style.marginTop='40px';p.style.fontWeight='700';p.textContent='Nwagra actif — espace applis elargi';document.body.appendChild(p);})();">Nwagra</a>
+    </p>
+    <ol>
+      <li>Mettez à jour la calculatrice sur le site NumWorks, <em>deux fois</em> (A/B).</li>
+      <li>Débranchez-la, puis allez sur <a href="https://my.numworks.com/apps">my.numworks.com/apps</a> (Chrome).</li>
+      <li>Cliquez le favori <strong>Nwagra</strong> : le titre devient «&nbsp;Enlarged Extra Apps&nbsp;».</li>
+      <li>Connectez, choisissez le <code>.nwa</code> puis la ROM / données, puis Installez.</li>
+    </ol>
+  </div>
+</body>
+</html>
