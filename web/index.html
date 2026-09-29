@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>NumWorks — installer plusieurs applis</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, "Segoe UI", sans-serif; margin: 0 auto; max-width: 980px;
+         padding: 24px 20px 48px; line-height: 1.45; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sous { margin: 0 0 20px; opacity: .8; }
+  fieldset { border: 1px solid #8884; border-radius: 10px; margin: 0 0 18px; padding: 14px 16px; }
+  legend { font-weight: 600; padding: 0 6px; }
+  .rangee { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button, select, input[type=file] { font: inherit; }
+  button { border: 1px solid #8886; background: #8881; border-radius: 8px;
+           padding: 7px 12px; cursor: pointer; }
+  button:hover:enabled { background: #8883; }
+  button:disabled { opacity: .5; cursor: progress; }
+  button.primaire { background: #2563eb; border-color: #2563eb; color: #fff; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #8883; font-size: .95rem; }
+  td.actions { white-space: nowrap; }
+  td.actions button { padding: 3px 8px; }
+  .vide { opacity: .7; padding: 10px 2px; }
+  .manque { color: #d33; font-weight: 600; }
+  #total { margin-left: auto; opacity: .85; }
+  #journal { background: #0001; border: 1px solid #8883; border-radius: 10px; padding: 12px;
+             height: 240px; overflow: auto; white-space: pre-wrap; font-family: ui-monospace,
+             Consolas, monospace; font-size: .85rem; }
+  #erreur { color: #d33; min-height: 1.3em; margin: 8px 0 0; }
+  .note { font-size: .9rem; opacity: .8; }
+</style>
+</head>
+<body>
+<h1>NumWorks — installer plusieurs applis d’un coup</h1>
+<p class="sous">Site local : la calculatrice reste pilotée par nwlink sur cet ordinateur.
+Tout ce que contient la liste est écrit en un seul flash — la zone « applis externes »
+est remplacée par cette liste.</p>
+
+<fieldset>
+  <legend>1. Ajouter des applis</legend>
+  <div class="rangee">
+    <select id="catalogue"></select>
+    <button id="btn-ajouter">Ajouter à la liste</button>
+    <span class="note">Le même émulateur peut être ajouté plusieurs fois (une ROM par ligne).</span>
+  </div>
+  <div class="rangee" style="margin-top:10px">
+    <label>Ou vos propres fichiers : <input type="file" id="fichier-nwa" accept=".nwa" multiple></label>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>2. Liste à installer</legend>
+  <table>
+    <thead><tr><th>Appli</th><th>Fichier .nwa</th><th>ROM / données</th><th>Taille</th><th></th></tr></thead>
+    <tbody id="lignes"></tbody>
+  </table>
+  <div class="rangee" style="margin-top:10px">
+    <button id="btn-vider">Vider la liste</button>
+    <span id="total"></span>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>3. Installer</legend>
+  <div class="rangee">
+    <button id="btn-installer" class="primaire">Valider et tout installer sur la calculatrice</button>
+    <button id="btn-essai">Essai sans calculatrice</button>
+    <span id="etat-tache" class="note"></span>
+  </div>
+  <p id="erreur"></p>
+  <p class="note">Branchez la NumWorks en USB, allumée, et fermez les autres onglets ou
+  logiciels qui lui parlent. Node.js (LTS) est nécessaire pour l’envoi groupé.</p>
+</fieldset>
+
+<fieldset>
+  <legend>Journal</legend>
+  <div id="journal"></div>
+</fieldset>
+
+<input type="file" id="fichier-rom" style="display:none">
+
+<script>
+const $ = (id) => document.getElementById(id);
+let etat = { applis: [], catalogue: [], journal: [], occupe: false };
+let ligneRom = null;
+
+function erreur(msg) { $("erreur").textContent = msg || ""; }
+
+async function appel(url, options) {
+  erreur("");
+  const r = await fetch(url, options);
+  const data = await r.json().catch(() => ({ erreur: "Réponse illisible du serveur." }));
+  if (!r.ok) { erreur(data.erreur || "Erreur du serveur."); return null; }
+  rendre(data);
+  return data;
+}
+
+const poster = (url, corps) => appel(url, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(corps || {}),
+});
+
+async function envoyerFichier(url, fichier, champs) {
+  const form = new FormData();
+  Object.entries(champs || {}).forEach(([k, v]) => form.append(k, v));
+  form.append("fichier", fichier, fichier.name);
+  return appel(url, { method: "POST", body: form });
+}
+
+function rendre(data) {
+  etat = data;
+  if (!$("catalogue").options.length) {
+    for (const e of data.catalogue) {
+      $("catalogue").add(new Option(e.nom, e.id));
+    }
+  }
+  const corps = $("lignes");
+  corps.innerHTML = "";
+  if (!data.applis.length) {
+    corps.innerHTML = '<tr><td colspan="5" class="vide">Liste vide.</td></tr>';
+  }
+  for (const a of data.applis) {
+    const tr = document.createElement("tr");
+    const rom = a.donnees
+      ? a.donnees
+      : (a.besoin_rom ? '<span class="manque">ROM requise</span>' : "—");
+    tr.innerHTML = `<td>${echap(a.libelle)}</td><td>${echap(a.nwa || "à télécharger")}</td>
+      <td>${a.donnees ? echap(a.donnees) : rom}</td><td>${echap(a.taille)}</td>
+      <td class="actions">
+        <button data-act="rom" data-i="${a.index}">ROM…</button>
+        <button data-act="haut" data-i="${a.index}">↑</button>
+        <button data-act="bas" data-i="${a.index}">↓</button>
+        <button data-act="retirer" data-i="${a.index}">✕</button>
+      </td>`;
+    corps.appendChild(tr);
+  }
+  $("total").textContent = data.applis.length
+    ? `${data.applis.length} appli(s) — total ${data.total}` : "";
+  $("etat-tache").textContent = data.occupe ? `${data.tache} en cours…` : "";
+  for (const b of document.querySelectorAll("button")) b.disabled = data.occupe;
+  const j = $("journal");
+  const bas = j.scrollHeight - j.scrollTop - j.clientHeight < 30;
+  j.textContent = data.journal.join("\n");
+  if (bas) j.scrollTop = j.scrollHeight;
+}
+
+const echap = (s) => String(s ?? "").replace(/[&<>]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+$("lignes").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  const i = Number(b.dataset.i);
+  if (b.dataset.act === "rom") { ligneRom = i; $("fichier-rom").click(); }
+  if (b.dataset.act === "haut") poster("/api/deplacer", { index: i, delta: -1 });
+  if (b.dataset.act === "bas") poster("/api/deplacer", { index: i, delta: 1 });
+  if (b.dataset.act === "retirer") poster("/api/retirer", { index: i });
+});
+
+$("fichier-rom").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (f && ligneRom !== null) await envoyerFichier("/api/rom", f, { index: ligneRom });
+});
+
+$("fichier-nwa").addEventListener("change", async (ev) => {
+  const fichiers = [...ev.target.files];
+  ev.target.value = "";
+  for (const f of fichiers) await envoyerFichier("/api/nwa", f);
+});
+
+$("btn-ajouter").onclick = () => poster("/api/emulateur", { id: $("catalogue").value });
+$("btn-vider").onclick = () => poster("/api/vider");
+$("btn-installer").onclick = () => poster("/api/installer", { essai: false });
+$("btn-essai").onclick = () => poster("/api/installer", { essai: true });
+
+async function rafraichir() {
+  try {
+    const r = await fetch("/api/etat");
+    if (r.ok) rendre(await r.json());
+  } catch (e) { /* serveur arrêté : on réessaie */ }
+}
+rafraichir();
+setInterval(rafraichir, 1000);
+</script>
+</body>
+</html>
